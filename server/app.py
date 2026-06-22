@@ -11,23 +11,33 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
 
-migrate = Migrate(app, db)
-
 db.init_app(app)
-
-@app.route('/clear')
-def clear_session():
-    session['page_views'] = 0
-    return {'message': '200: Successfully cleared session data.'}, 200
-
-@app.route('/articles')
-def index_articles():
-    articles = [ArticleSchema().dump(a) for a in Article.query.all()]
-    return make_response(articles)
+migrate = Migrate(app, db)
 
 @app.route('/articles/<int:id>')
 def show_article(id):
-    pass
+
+    # 1. Initialize session counter
+    if 'page_views' not in session:
+        session['page_views'] = 0
+
+    # 2. Increment on every request
+    session['page_views'] += 1
+
+    # 3. Enforce paywall (after 3 views)
+    if session['page_views'] > 3:
+        return {
+            "message": "Maximum pageview limit reached"
+        }, 401
+
+    # 4. Fetch article
+    article = Article.query.get(id)
+
+    if not article:
+        return {"error": "Article not found"}, 404
+
+    # 5. Return article data
+    return make_response(ArticleSchema().dump(article), 200)
 
 
 if __name__ == '__main__':
